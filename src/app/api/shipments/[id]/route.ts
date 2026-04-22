@@ -21,7 +21,8 @@ export const GET = withAuth<unknown, IdParams>(async (req: AuthedRequest, ctx) =
 
     return ok(shipment);
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to get shipment");
+    console.error("[shipments:GET]", err);
+    return serverError("Failed to get shipment");
   }
 });
 
@@ -42,9 +43,11 @@ export const PATCH = withAuth<unknown, IdParams>(async (req: AuthedRequest, ctx)
     const shipment = await service.update(id, parsed.data, req.user.id);
     return ok(shipment);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to update shipment";
+    const msg = err instanceof Error ? err.message : "";
     if (msg === "Shipment not found") return notFound(msg);
-    return serverError(msg);
+    if (msg === "Driver not found" || msg === "Vehicle not found") return badRequest(msg);
+    console.error("[shipments:PATCH]", err);
+    return serverError("Failed to update shipment");
   }
 });
 
@@ -66,6 +69,7 @@ export const DELETE = withAuth<unknown, IdParams>(async (req: AuthedRequest, ctx
     );
     return ok(updated);
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed");
+    console.error("[shipments:DELETE]", err);
+    return serverError("Failed to cancel shipment");
   }
 });

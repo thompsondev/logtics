@@ -29,6 +29,7 @@ export const GET = withAuth<unknown, Params>(async (req: AuthedRequest, ctx) => 
     const result = await trackingService.getEvents(shipment.id, page, pageSize);
     return ok({ ...result, page, pageSize, totalPages: Math.ceil(result.total / pageSize) });
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to get events");
+    console.error("[tracking-events:GET]", err);
+    return serverError("Failed to get events");
   }
 });

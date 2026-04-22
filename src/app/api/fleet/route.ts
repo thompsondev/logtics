@@ -37,7 +37,8 @@ export const GET = withAuth(async (req: AuthedRequest) => {
     ]);
     return ok({ ...vehicles, summary });
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to list fleet");
+    console.error("[fleet:GET]", err);
+    return serverError("Failed to list fleet");
   }
 });
 
@@ -55,8 +56,9 @@ export const POST = withAuth(async (req: AuthedRequest) => {
     const vehicle = await service.createVehicle(parsed.data);
     return NextResponse.json({ success: true, data: vehicle }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to create vehicle";
+    const msg = err instanceof Error ? err.message : "";
     if (msg === "Plate number already registered") return badRequest(msg);
-    return serverError(msg);
+    console.error("[fleet:POST]", err);
+    return serverError("Failed to create vehicle");
   }
 });

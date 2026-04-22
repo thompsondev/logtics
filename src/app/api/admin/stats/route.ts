@@ -64,6 +64,6 @@ export const GET = withAuth(async (req: AuthedRequest) => {
     await cacheSet(cacheKey, stats, 60);
     return ok(stats);
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to load stats");
+    console.error("[admin-stats:GET]", err); return serverError("Failed to load stats");
   }
 });

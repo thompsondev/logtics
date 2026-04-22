@@ -36,6 +36,6 @@ export const GET = withAuth(async (req: AuthedRequest) => {
       data: result.data.map((u) => service.sanitize(u)),
     });
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to list users");
+    console.error("[users:GET]", err); return serverError("Failed to list users");
   }
 });

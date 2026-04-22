@@ -57,11 +57,31 @@ export class User {
     return `${this.firstName} ${this.lastName}`;
   }
 
+  /**
+   * Transient flag — set to true by callers that have just assigned a NEW
+   * plain-text password to `this.password`.  This prevents the bcrypt guard
+   * from re-hashing an already-hashed password when TypeORM fires @BeforeUpdate
+   * on unrelated field changes (e.g. avatarUrl update).
+   *
+   * The `_` prefix and `!` column-less decorator keeps TypeORM from persisting
+   * this field.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _passwordChanged = false;
+
   @BeforeInsert()
-  @BeforeUpdate()
-  async hashPassword() {
-    if (this.password && !this.password.startsWith("$2")) {
+  async hashPasswordOnInsert() {
+    if (this.password) {
       this.password = await bcrypt.hash(this.password, 12);
+      this._passwordChanged = false;
+    }
+  }
+
+  @BeforeUpdate()
+  async hashPasswordOnUpdate() {
+    if (this._passwordChanged && this.password) {
+      this.password = await bcrypt.hash(this.password, 12);
+      this._passwordChanged = false;
     }
   }
 

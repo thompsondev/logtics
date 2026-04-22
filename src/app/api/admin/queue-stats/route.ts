@@ -11,6 +11,6 @@ export const GET = withAuth(async (req: AuthedRequest) => {
     const stats = await getQueueStats();
     return ok(stats);
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to get queue stats");
+    console.error("[queue-stats:GET]", err); return serverError("Failed to get queue stats");
   }
 });

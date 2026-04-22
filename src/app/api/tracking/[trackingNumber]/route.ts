@@ -16,9 +16,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<Params> }) {
     const ds = await getDataSource();
     const service = new TrackingService(ds);
     const result = await service.getByTrackingNumber(trackingNumber.toUpperCase());
-    if (!result) return notFound("Shipment not found for tracking number: " + trackingNumber);
+    if (!result) return notFound("Shipment not found");
     return ok(result);
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Tracking lookup failed");
+    console.error("[tracking:GET]", err);
+    return serverError("Tracking lookup failed");
   }
 }

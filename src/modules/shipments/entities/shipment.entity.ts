@@ -139,9 +139,11 @@ export class Shipment {
   @BeforeInsert()
   generateTrackingNumber() {
     if (!this.trackingNumber) {
-      const timestamp = Date.now().toString(36).toUpperCase();
-      const random = uuidv4().replace(/-/g, "").substring(0, 8).toUpperCase();
-      this.trackingNumber = `LGT-${timestamp}-${random}`;
+      // Use two separate UUID segments for 96 bits of entropy — no timestamp
+      // prefix that would let an observer enumerate shipment volume or timing.
+      const a = uuidv4().replace(/-/g, "").substring(0, 8).toUpperCase();
+      const b = uuidv4().replace(/-/g, "").substring(0, 8).toUpperCase();
+      this.trackingNumber = `LGT-${a}-${b}`;
     }
   }
 }

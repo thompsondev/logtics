@@ -1,20 +1,19 @@
-import { NextRequest } from "next/server";
 import { getDataSource } from "@/lib/db";
 import { AuthService } from "@/modules/auth/auth.service";
+import { withAuth, AuthedRequest } from "@/lib/with-auth";
 import { ok, unauthorized, serverError } from "@/lib/api-response";
 
-export async function GET(req: NextRequest) {
+// withAuth re-verifies the JWT — no header-trust vulnerability
+export const GET = withAuth(async (req: AuthedRequest) => {
   try {
-    const userId = req.headers.get("x-user-id");
-    if (!userId) return unauthorized();
-
     const ds = await getDataSource();
     const service = new AuthService(ds);
-    const user = await service.me(userId);
+    const user = await service.me(req.user.id);
     return ok(user);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed";
-    if (message === "User not found") return unauthorized(message);
-    return serverError(message);
+    const msg = err instanceof Error ? err.message : "";
+    if (msg === "User not found") return unauthorized(msg);
+    console.error("[auth:me]", err);
+    return serverError("Failed to retrieve user");
   }
-}
+});

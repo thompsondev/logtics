@@ -33,7 +33,9 @@ export const GET = withAuth(async (req: AuthedRequest) => {
     ? new Date(parsed.data.from)
     : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const cacheKey = `analytics:${granularity}:${from.toISOString().slice(0, 10)}:${to.toISOString().slice(0, 10)}`;
+  // Include the user's role in the cache key — STAFF and ADMIN may receive
+  // different data sets in future and must never share each other's cached results.
+  const cacheKey = `analytics:${req.user.role}:${granularity}:${from.toISOString().slice(0, 10)}:${to.toISOString().slice(0, 10)}`;
 
   try {
     // Cache analytics — 5 min TTL
@@ -47,6 +49,8 @@ export const GET = withAuth(async (req: AuthedRequest) => {
     await cacheSet(cacheKey, result, CACHE_TTL.ANALYTICS);
     return ok(result);
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Analytics query failed");
+    // Don't leak internal error details to clients
+    console.error("[analytics]", err);
+    return serverError("Analytics query failed");
   }
 });

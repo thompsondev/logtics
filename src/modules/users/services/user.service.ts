@@ -66,12 +66,11 @@ export class UserService {
     return this.repo.findOneOrFail({ where: { id } });
   }
 
-  // Strips password and private methods from the returned object
+  // Strips password and private fields from the returned object
   sanitize(user: User): Record<string, unknown> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, hashPassword, comparePassword, ...safe } = user as User & {
-      password: string;
-    };
+    const { password, comparePassword, hashPasswordOnInsert, hashPasswordOnUpdate, _passwordChanged, ...safe } =
+      user as User & { password: string };
     return safe;
   }
 }

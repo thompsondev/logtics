@@ -59,6 +59,6 @@ export const GET = withAuth(async (req: AuthedRequest) => {
       },
     });
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to load audit logs");
+    console.error("[audit-logs:GET]", err); return serverError("Failed to load audit logs");
   }
 });

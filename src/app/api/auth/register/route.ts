@@ -10,6 +10,7 @@ import {
 } from "@/lib/api-response";
 import {
   TOKEN_COOKIE_OPTIONS,
+  REFRESH_TOKEN_COOKIE_OPTIONS,
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
   getClientIp,
@@ -41,13 +42,14 @@ export async function POST(req: NextRequest) {
       maxAge: 7 * 24 * 60 * 60,
     });
     response.cookies.set(REFRESH_TOKEN_COOKIE, result.tokens.refreshToken, {
-      ...TOKEN_COOKIE_OPTIONS,
+      ...REFRESH_TOKEN_COOKIE_OPTIONS,
       maxAge: 30 * 24 * 60 * 60,
     });
     return response;
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Registration failed";
+    const message = err instanceof Error ? err.message : "";
     if (message === "Email already registered") return badRequest(message);
-    return serverError(message);
+    console.error("[auth:register]", err);
+    return serverError("Registration failed");
   }
 }

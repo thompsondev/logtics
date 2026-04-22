@@ -20,10 +20,12 @@ export async function rateLimit(
   req: NextRequest,
   opts: RateLimitOptions,
 ): Promise<NextResponse<ApiResponse> | null> {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    req.headers.get("x-real-ip") ??
-    "unknown";
+  // Use the LAST hop from X-Forwarded-For — the first hop is attacker-controlled.
+  // The last hop is appended by our load balancer / CDN and is trustworthy.
+  const forwarded = req.headers.get("x-forwarded-for");
+  const ip = forwarded
+    ? (forwarded.split(",").map((h) => h.trim()).at(-1) ?? "unknown")
+    : (req.headers.get("x-real-ip") ?? "unknown");
 
   const key = `rl:${opts.prefix}:${ip}`;
 

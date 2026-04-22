@@ -61,6 +61,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
+  jti?: string;   // token id — used for revocation
   iat?: number;
   exp?: number;
 }

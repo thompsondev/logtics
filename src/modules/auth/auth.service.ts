@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { DataSource } from "typeorm";
 import { User } from "@/modules/users/entities/user.entity";
 import { AuditLog } from "@/modules/auth/entities/audit-log.entity";
@@ -5,6 +6,21 @@ import { UserService } from "@/modules/users/services/user.service";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "@/lib/jwt";
 import { RegisterInput, LoginInput } from "@/modules/auth/dtos/auth.dto";
 import { AUDIT_ACTIONS } from "@/config/constants";
+import {
+  storeRefreshJti,
+  consumeRefreshJti,
+  revokeRefreshJti,
+  blockAccessToken,
+  recordFailedLogin,
+  isAccountLocked,
+  clearFailedLogins,
+} from "@/lib/redis";
+
+// A pre-computed bcrypt hash used as a dummy comparison target when the
+// requested email does not exist.  This makes failed lookups take the same
+// wall-clock time as a real bcrypt.compare, preventing user-enumeration via
+// timing side-channels.
+const DUMMY_HASH = "$2b$12$invalidhashpaddingthatisexactly60charslong12345678";
 
 export interface TokenPair {
   accessToken: string;
@@ -25,31 +41,89 @@ export class AuthService {
 
   async register(input: RegisterInput, ipAddress?: string): Promise<AuthResult> {
     const user = await this.userService.create(input);
-    const tokens = this.issueTokens(user);
+    const tokens = await this.issueTokens(user);
     await this.audit(user.id, AUDIT_ACTIONS.USER_CREATED, ipAddress);
     return { user: this.userService.sanitize(user), tokens };
   }
 
   async login(input: LoginInput, ipAddress?: string): Promise<AuthResult> {
+    // ── Check account lockout before hitting the DB ───────────────────────
+    const locked = await isAccountLocked(input.email).catch(() => false);
+    if (locked) throw new Error("Account temporarily locked. Try again later.");
+
     const user = await this.userService.findByEmail(input.email, true);
 
-    if (!user) throw new Error("Invalid credentials");
+    // Always run bcrypt even when the user doesn't exist — prevents timing
+    // attacks that would let an attacker enumerate valid email addresses.
+    const hashToCompare = user?.password ?? DUMMY_HASH;
+    const valid = await bcrypt.compare(input.password, hashToCompare);
 
-    const valid = await user.comparePassword(input.password);
-    if (!valid) throw new Error("Invalid credentials");
+    if (!user || !valid) {
+      // Record the failure against this email (fire-and-forget, non-fatal)
+      recordFailedLogin(input.email).catch(() => null);
+      throw new Error("Invalid credentials");
+    }
 
     if (!user.isActive) throw new Error("Account is deactivated");
 
-    const tokens = this.issueTokens(user);
+    // Clear failure counter on successful login
+    await clearFailedLogins(input.email).catch(() => null);
+
+    const tokens = await this.issueTokens(user);
     await this.audit(user.id, AUDIT_ACTIONS.USER_LOGIN, ipAddress);
     return { user: this.userService.sanitize(user), tokens };
   }
 
+  /**
+   * Exchange a valid refresh token for a new token pair.
+   * Single-use rotation: the old jti is consumed (deleted) before the new
+   * pair is issued, preventing replay attacks.
+   */
   async refresh(refreshToken: string): Promise<TokenPair> {
     const payload = verifyRefreshToken(refreshToken);
-    const user = await this.userService.findById(payload.sub);
+
+    if (!payload.jti) throw new Error("Malformed refresh token");
+
+    // Consume the jti — if it returns null the token was already used or revoked
+    const userId = await consumeRefreshJti(payload.jti);
+    if (!userId) throw new Error("Refresh token already used or revoked");
+
+    const user = await this.userService.findById(userId);
     if (!user) throw new Error("User not found");
+
     return this.issueTokens(user);
+  }
+
+  /**
+   * Invalidate both tokens on logout.
+   * - Access token jti is added to the Redis blocklist until its natural expiry
+   * - Refresh token jti is deleted from the allowlist
+   */
+  async logout(accessToken: string, refreshToken?: string): Promise<void> {
+    // Block the access token
+    try {
+      const { verifyAccessToken } = await import("@/lib/jwt");
+      const payload = verifyAccessToken(accessToken);
+      if (payload.jti && payload.exp) {
+        const remaining = payload.exp - Math.floor(Date.now() / 1000);
+        if (remaining > 0) {
+          await blockAccessToken(payload.jti, remaining);
+        }
+      }
+    } catch {
+      // Token already expired — nothing to block
+    }
+
+    // Revoke the refresh token jti
+    if (refreshToken) {
+      try {
+        const { verifyRefreshToken } = await import("@/lib/jwt");
+        const payload = verifyRefreshToken(refreshToken);
+        if (payload.jti) await revokeRefreshJti(payload.jti);
+      } catch {
+        // Already expired or malformed — safe to ignore
+      }
+    }
   }
 
   async me(userId: string) {
@@ -58,12 +132,15 @@ export class AuthService {
     return this.userService.sanitize(user);
   }
 
-  private issueTokens(user: User): TokenPair {
-    const payload = { sub: user.id, email: user.email, role: user.role };
-    return {
-      accessToken: signAccessToken(payload),
-      refreshToken: signRefreshToken(payload),
-    };
+  private async issueTokens(user: User): Promise<TokenPair> {
+    const basePayload = { sub: user.id, email: user.email, role: user.role };
+    const accessToken = signAccessToken(basePayload);
+    const { token: refreshToken, jti } = signRefreshToken(basePayload);
+
+    // Persist the jti so we can verify it on the next refresh call
+    await storeRefreshJti(user.id, jti).catch(() => null); // non-fatal if Redis is down
+
+    return { accessToken, refreshToken };
   }
 
   private async audit(userId: string, action: string, ipAddress?: string) {

@@ -31,9 +31,10 @@ export const PATCH = withAuth<unknown, Params>(async (req: AuthedRequest, ctx) =
     const user = await service.updateRole(id, parsed.data.role);
     return ok(service.sanitize(user));
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to update user";
+    const msg = err instanceof Error ? err.message : "";
     if (msg.includes("not found") || msg.includes("No entity")) return notFound("User not found");
-    return serverError(msg);
+    console.error("[users:PATCH]", err);
+    return serverError("Failed to update user");
   }
 });
 
@@ -53,6 +54,7 @@ export const DELETE = withAuth<unknown, Params>(async (req: AuthedRequest, ctx) 
     await service.deactivate(id);
     return ok({ deactivated: true });
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to deactivate user");
+    console.error("[users:DELETE]", err);
+    return serverError("Failed to deactivate user");
   }
 });

@@ -1,6 +1,32 @@
 import { ShipmentStatus } from "@/types";
 import { APP_NAME } from "@/config/constants";
 
+/** Escape user-supplied strings before embedding them in HTML. */
+function esc(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
+/**
+ * Sanitise a URL: only allow http/https schemes to prevent
+ * javascript: or data: URI injection in href/src attributes.
+ */
+function safeUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return "#";
+    }
+    return url.toString();
+  } catch {
+    return "#";
+  }
+}
+
 const STATUS_COPY: Record<
   ShipmentStatus,
   { headline: string; body: string; color: string; emoji: string }
@@ -71,14 +97,15 @@ export function renderShipmentStatusEmail(data: ShipmentStatusTemplateData): {
   html: string;
 } {
   const copy = STATUS_COPY[data.status];
-  const trackUrl = `${data.appUrl}/track/${data.trackingNumber}`;
+  const appUrl = safeUrl(data.appUrl);
+  const trackUrl = safeUrl(`${appUrl}/track/${data.trackingNumber}`);
 
   const etaRow =
     data.estimatedDelivery && data.status !== ShipmentStatus.DELIVERED
       ? `<tr>
            <td style="padding:4px 0;color:#9ca3af;font-size:13px;">Estimated delivery</td>
            <td style="padding:4px 0;font-size:13px;font-weight:600;text-align:right;">
-             ${new Date(data.estimatedDelivery).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+             ${esc(new Date(data.estimatedDelivery).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }))}
            </td>
          </tr>`
       : "";
@@ -86,7 +113,7 @@ export function renderShipmentStatusEmail(data: ShipmentStatusTemplateData): {
   const locationRow = data.location
     ? `<tr>
          <td style="padding:4px 0;color:#9ca3af;font-size:13px;">Current location</td>
-         <td style="padding:4px 0;font-size:13px;text-align:right;">${data.location}</td>
+         <td style="padding:4px 0;font-size:13px;text-align:right;">${esc(data.location)}</td>
        </tr>`
     : "";
 
@@ -125,7 +152,7 @@ export function renderShipmentStatusEmail(data: ShipmentStatusTemplateData): {
 
               <!-- Body -->
               <div style="padding:32px;">
-                <p style="margin:0 0 8px;color:#374151;font-size:15px;">Hi ${data.receiverName},</p>
+                <p style="margin:0 0 8px;color:#374151;font-size:15px;">Hi ${esc(data.receiverName)},</p>
                 <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">${copy.body}</p>
 
                 <!-- Tracking info table -->
@@ -134,12 +161,12 @@ export function renderShipmentStatusEmail(data: ShipmentStatusTemplateData): {
                   <tr>
                     <td style="padding:4px 0;color:#9ca3af;font-size:13px;">Tracking number</td>
                     <td style="padding:4px 0;font-size:13px;font-weight:700;text-align:right;font-family:monospace;color:#111827;">
-                      ${data.trackingNumber}
+                      ${esc(data.trackingNumber)}
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:4px 0;color:#9ca3af;font-size:13px;">Route</td>
-                    <td style="padding:4px 0;font-size:13px;text-align:right;">${data.originCity} → ${data.destinationCity}</td>
+                    <td style="padding:4px 0;font-size:13px;text-align:right;">${esc(data.originCity)} → ${esc(data.destinationCity)}</td>
                   </tr>
                   ${etaRow}
                   ${locationRow}
@@ -149,7 +176,8 @@ export function renderShipmentStatusEmail(data: ShipmentStatusTemplateData): {
                 <div style="text-align:center;margin-bottom:24px;">
                   <a href="${trackUrl}"
                     style="display:inline-block;background:#3b82f6;color:#fff;font-weight:600;font-size:14px;
-                           padding:12px 28px;border-radius:10px;text-decoration:none;">
+                           padding:12px 28px;border-radius:10px;text-decoration:none;"
+                    rel="noopener noreferrer">
                     Track Your Shipment →
                   </a>
                 </div>
@@ -157,7 +185,7 @@ export function renderShipmentStatusEmail(data: ShipmentStatusTemplateData): {
                 <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
                   You're receiving this because a shipment is being delivered to you.<br/>
                   If you have questions, reply to this email or visit
-                  <a href="${data.appUrl}" style="color:#3b82f6;">${APP_NAME}</a>.
+                  <a href="${appUrl}" style="color:#3b82f6;">${esc(APP_NAME)}</a>.
                 </p>
               </div>
             </td>

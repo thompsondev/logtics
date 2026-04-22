@@ -24,9 +24,10 @@ export const PATCH = withAuth<unknown, IdParams>(async (req: AuthedRequest, ctx)
     const shipment = await service.updateStatus(id, parsed.data, req.user.id);
     return ok(shipment);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to update status";
+    const msg = err instanceof Error ? err.message : "";
     if (msg === "Shipment not found") return notFound(msg);
     if (msg.startsWith("Cannot transition")) return badRequest(msg);
-    return serverError(msg);
+    console.error("[shipments:status:PATCH]", err);
+    return serverError("Failed to update status");
   }
 });

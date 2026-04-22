@@ -31,9 +31,10 @@ export const PATCH = withAuth<unknown, Params>(async (req: AuthedRequest, ctx) =
     const vehicle = await service.updateVehicle(id, parsed.data);
     return ok(vehicle);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to update vehicle";
+    const msg = err instanceof Error ? err.message : "";
     if (msg.includes("not found") || msg.includes("No entity")) return notFound("Vehicle not found");
-    return serverError(msg);
+    console.error("[fleet:PATCH]", err);
+    return serverError("Failed to update vehicle");
   }
 });
 
@@ -51,6 +52,7 @@ export const DELETE = withAuth<unknown, Params>(async (req: AuthedRequest, ctx) 
     await service.deleteVehicle(id);
     return ok({ deleted: true });
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Failed to delete vehicle");
+    console.error("[fleet:DELETE]", err);
+    return serverError("Failed to delete vehicle");
   }
 });

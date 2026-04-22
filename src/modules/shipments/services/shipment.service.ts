@@ -3,6 +3,8 @@ import { Shipment } from "@/modules/shipments/entities/shipment.entity";
 import { Address } from "@/modules/shipments/entities/address.entity";
 import { TrackingEvent } from "@/modules/tracking/entities/tracking-event.entity";
 import { AuditLog } from "@/modules/auth/entities/audit-log.entity";
+import { Driver } from "@/modules/fleet/entities/driver.entity";
+import { Vehicle } from "@/modules/fleet/entities/vehicle.entity";
 import {
   CreateShipmentInput,
   UpdateShipmentInput,
@@ -11,6 +13,7 @@ import {
 } from "@/modules/shipments/dtos/shipment.dto";
 import { ShipmentStatus, ShippingMethod, UserRole } from "@/types";
 import { AUDIT_ACTIONS } from "@/config/constants";
+import { AuditMetadata } from "@/modules/auth/entities/audit-log.entity";
 import { notificationQueue, trackingEventQueue } from "@/lib/queue";
 import { cacheDel } from "@/lib/redis";
 import { broadcastTrackingUpdate } from "@/lib/realtime";
@@ -40,17 +43,34 @@ const METHOD_RATE: Record<ShippingMethod, number> = {
   [ShippingMethod.OVERNIGHT]: 15.0,
 };
 
+// Columns that callers may sort by — guards against SQL column-injection
+const SORT_ALLOWLIST = new Set([
+  "createdAt",
+  "updatedAt",
+  "status",
+  "shippingMethod",
+  "price",
+  "weightKg",
+  "trackingNumber",
+  "estimatedDelivery",
+  "actualDelivery",
+]);
+
 export class ShipmentService {
   private readonly shipmentRepo: Repository<Shipment>;
   private readonly addressRepo: Repository<Address>;
   private readonly trackingRepo: Repository<TrackingEvent>;
   private readonly auditRepo: Repository<AuditLog>;
+  private readonly driverRepo: Repository<Driver>;
+  private readonly vehicleRepo: Repository<Vehicle>;
 
   constructor(private readonly ds: DataSource) {
     this.shipmentRepo = ds.getRepository(Shipment);
     this.addressRepo = ds.getRepository(Address);
     this.trackingRepo = ds.getRepository(TrackingEvent);
     this.auditRepo = ds.getRepository(AuditLog);
+    this.driverRepo = ds.getRepository(Driver);
+    this.vehicleRepo = ds.getRepository(Vehicle);
   }
 
   // ─── Create ─────────────────────────────────────────────────────────────
@@ -123,7 +143,8 @@ export class ShipmentService {
       );
     }
 
-    qb.orderBy(`s.${sortBy}`, sortOrder)
+    const safeSortBy = SORT_ALLOWLIST.has(sortBy) ? sortBy : "createdAt";
+    qb.orderBy(`s.${safeSortBy}`, sortOrder)
       .skip((page - 1) * pageSize)
       .take(pageSize);
 
@@ -168,6 +189,17 @@ export class ShipmentService {
   async update(id: string, input: UpdateShipmentInput, userId: string): Promise<Shipment> {
     const shipment = await this.getById(id);
     if (!shipment) throw new Error("Shipment not found");
+
+    // Validate driverId and vehicleId against their respective tables
+    // before persisting — prevents dangling FK references and IDOR abuse.
+    if (input.driverId !== undefined && input.driverId !== null) {
+      const driver = await this.driverRepo.findOne({ where: { id: input.driverId } });
+      if (!driver) throw new Error("Driver not found");
+    }
+    if (input.vehicleId !== undefined && input.vehicleId !== null) {
+      const vehicle = await this.vehicleRepo.findOne({ where: { id: input.vehicleId } });
+      if (!vehicle) throw new Error("Vehicle not found");
+    }
 
     await this.shipmentRepo.update(id, {
       ...(input.receiver && { receiver: { ...shipment.receiver, ...input.receiver } }),
@@ -287,9 +319,9 @@ export class ShipmentService {
     action: string,
     resourceType: string,
     resourceId: string,
-    metadata?: Record<string, unknown>,
+    metadata?: AuditMetadata,
   ) {
-    const log = this.auditRepo.create({ userId, action, resourceType, resourceId, metadata });
+    const log = this.auditRepo.create({ userId, action, resourceType, resourceId, metadata: metadata ?? null });
     await this.auditRepo.save(log).catch(() => null);
   }
 

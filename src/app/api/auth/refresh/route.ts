@@ -4,6 +4,7 @@ import { AuthService } from "@/modules/auth/auth.service";
 import { ok, unauthorized, serverError } from "@/lib/api-response";
 import {
   TOKEN_COOKIE_OPTIONS,
+  REFRESH_TOKEN_COOKIE_OPTIONS,
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
 } from "@/lib/with-auth";
@@ -26,11 +27,15 @@ export async function POST(req: NextRequest) {
       maxAge: 7 * 24 * 60 * 60,
     });
     response.cookies.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
-      ...TOKEN_COOKIE_OPTIONS,
+      ...REFRESH_TOKEN_COOKIE_OPTIONS,
       maxAge: 30 * 24 * 60 * 60,
     });
     return response;
-  } catch {
-    return unauthorized("Invalid or expired refresh token");
+  } catch (err) {
+    // Don't leak internal error messages
+    const msg = err instanceof Error && err.message === "Refresh token already used or revoked"
+      ? "Refresh token already used or revoked"
+      : "Invalid or expired refresh token";
+    return unauthorized(msg);
   }
 }

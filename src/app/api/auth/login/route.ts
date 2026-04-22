@@ -5,6 +5,7 @@ import { LoginDto } from "@/modules/auth/dtos/auth.dto";
 import { ok, badRequest, unauthorized, serverError } from "@/lib/api-response";
 import {
   TOKEN_COOKIE_OPTIONS,
+  REFRESH_TOKEN_COOKIE_OPTIONS,
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
   getClientIp,
@@ -33,14 +34,20 @@ export async function POST(req: NextRequest) {
       maxAge: 7 * 24 * 60 * 60,
     });
     response.cookies.set(REFRESH_TOKEN_COOKIE, result.tokens.refreshToken, {
-      ...TOKEN_COOKIE_OPTIONS,
+      ...REFRESH_TOKEN_COOKIE_OPTIONS,
       maxAge: 30 * 24 * 60 * 60,
     });
     return response;
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Login failed";
-    if (message === "Invalid credentials") return unauthorized(message);
-    if (message === "Account is deactivated") return unauthorized(message);
-    return serverError(message);
+    const message = err instanceof Error ? err.message : "";
+    // Only surface allow-listed client-facing messages; swallow everything else
+    const clientMessages = new Set([
+      "Invalid credentials",
+      "Account is deactivated",
+      "Account temporarily locked. Try again later.",
+    ]);
+    if (clientMessages.has(message)) return unauthorized(message);
+    console.error("[auth:login]", err);
+    return serverError("Login failed");
   }
 }

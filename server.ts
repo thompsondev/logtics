@@ -9,7 +9,7 @@
  */
 
 import "reflect-metadata";
-import { createServer } from "http";
+import { createServer, IncomingMessage } from "http";
 import { parse } from "url";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
@@ -17,6 +17,7 @@ import { wsManager } from "./src/lib/realtime/ws-manager";
 import { startSubscriber } from "./src/lib/realtime/publisher";
 import { startWorkers, stopWorkers } from "./src/lib/workers";
 import { logger } from "./src/lib/logger";
+import { verifyAccessToken } from "./src/lib/jwt";
 import type { WsMessage } from "./src/lib/realtime/ws-manager";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -82,16 +83,40 @@ app.prepare().then(() => {
     });
   });
 
-  // Only upgrade requests to /ws
+  // Only upgrade requests to /ws — verify JWT before completing the handshake
   httpServer.on("upgrade", (req, socket, head) => {
-    const { pathname } = parse(req.url ?? "/");
-    if (pathname === "/ws") {
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        wss.emit("connection", ws, req);
-      });
-    } else {
+    const { pathname, query } = parse(req.url ?? "/", true);
+    if (pathname !== "/ws") {
       socket.destroy();
+      return;
     }
+
+    // Accept token from:
+    //   1. ?token=<jwt> query param  (browser WebSocket API cannot set headers)
+    //   2. Cookie: access_token=<jwt>
+    const tokenFromQuery = Array.isArray(query.token) ? query.token[0] : query.token;
+    const tokenFromCookie = extractCookieToken(req, "access_token");
+    const token = tokenFromQuery ?? tokenFromCookie;
+
+    if (!token) {
+      logger.warn("WS upgrade rejected: no token", "WsServer");
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    try {
+      verifyAccessToken(token);
+    } catch {
+      logger.warn("WS upgrade rejected: invalid token", "WsServer");
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
   });
 
   // ─── Redis pub/sub subscriber ─────────────────────────────────────────────
@@ -125,6 +150,17 @@ app.prepare().then(() => {
     logger.info(`WebSocket ready on ws://${hostname}:${port}/ws`, "Server");
   });
 });
+
+// ─── Cookie parser helper ─────────────────────────────────────────────────
+
+function extractCookieToken(req: IncomingMessage, name: string): string | undefined {
+  const cookieHeader = req.headers["cookie"] ?? "";
+  for (const part of cookieHeader.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key.trim() === name) return rest.join("=").trim();
+  }
+  return undefined;
+}
 
 // ─── Client message handler ──────────────────────────────────────────────
 
