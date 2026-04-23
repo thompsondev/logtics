@@ -39,8 +39,21 @@ export async function logoutRequest() {
 }
 
 export async function getMeRequest(): Promise<AuthUser | null> {
-  const res = await fetch("/api/auth/me", { credentials: "include" });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.success ? (data.data as AuthUser) : null;
+  try {
+    // Abort if the server takes more than 8 s — prevents infinite spinner
+    // during Next.js dev cold-start compilation of heavy route bundles.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8_000);
+    const res = await fetch("/api/auth/me", {
+      credentials: "include",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.success ? (data.data as AuthUser) : null;
+  } catch {
+    // Network error, timeout, or non-JSON body — treat as not logged in
+    return null;
+  }
 }
