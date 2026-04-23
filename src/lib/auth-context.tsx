@@ -54,23 +54,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // ── Phase 1: instant restore from localStorage ────────────────────────
-    // Eliminates the spinner on every page load after the first login.
-    // The cached value is only used for immediate rendering — it is always
-    // superseded by the server response below.
+    // ── Phase 1: instant render ───────────────────────────────────────────
+    // Restore cached user (or null) from localStorage so the page renders
+    // immediately without a spinner.  Works for both logged-in users
+    // (shows the right UI) and logged-out users (shows login form at once).
     const cached = readCachedUser();
-    if (cached) {
-      setUser(cached);
-      setLoading(false);
-    }
+    setUser(cached);
+    setLoading(false);
 
     // ── Phase 2: background server verification ───────────────────────────
-    // Confirms the session is still valid (cookie not expired / revoked).
-    // Sets loading → false regardless, so non-cached visitors see the page
-    // after the server responds (max 8 s timeout in getMeRequest).
-    refresh()
-      .catch(() => null)
-      .finally(() => setLoading(false));
+    // Silently re-checks the session against the server.
+    // • Valid session  → updates user in context (may redirect to dashboard)
+    // • Expired/gone   → clears user + cache (may redirect to login)
+    // The spinner is already gone by this point — no UI flicker.
+    refresh().catch(() => null);
   }, [refresh]);
 
   return <Ctx.Provider value={{ user, loading, logout, refresh }}>{children}</Ctx.Provider>;

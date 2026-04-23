@@ -2,8 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAccessToken } from "@/lib/jwt";
 import { UserRole } from "@/types";
 
-// Routes that require no authentication
-const PUBLIC_ROUTES = ["/", "/track", "/api/tracking", "/api/auth", "/api/health", "/ws"];
+// Routes that require no authentication.
+// IMPORTANT: do NOT include bare "/" here — startsWith("/") matches every
+// path, which would bypass auth on every route including /dashboard and /admin.
+// The root path is matched with an exact check further down.
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/register",
+  "/track",
+  "/api/tracking",
+  "/api/auth",
+  "/api/health",
+  "/ws",
+];
 
 // Routes restricted to ADMIN / STAFF (STAFF is checked at the handler level)
 const ADMIN_ROUTES = ["/admin", "/api/admin", "/api/analytics", "/api/fleet", "/api/users"];
@@ -69,7 +80,8 @@ export function proxy(request: NextRequest) {
 
   // Allow public routes and static assets
   if (
-    PUBLIC_ROUTES.some((r) => pathname.startsWith(r)) ||
+    pathname === "/" ||                                          // exact root
+    PUBLIC_PREFIXES.some((r) => pathname.startsWith(r)) ||     // public prefixes
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
   ) {
