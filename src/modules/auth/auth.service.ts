@@ -20,7 +20,10 @@ import {
 // requested email does not exist.  This makes failed lookups take the same
 // wall-clock time as a real bcrypt.compare, preventing user-enumeration via
 // timing side-channels.
-const DUMMY_HASH = "$2b$12$invalidhashpaddingthatisexactly60charslong12345678";
+// Must be a properly-formed 60-char bcrypt hash so bcryptjs can extract a
+// valid salt and run a real comparison (otherwise it may short-circuit and
+// return faster, leaking the "user not found" branch via timing).
+const DUMMY_HASH = "$2b$12$GvFKOzDNEoJDkYPDDAothOZT6V6OgGNEbgzPRfqmH/DEqhWs/pKI2";
 
 export interface TokenPair {
   accessToken: string;

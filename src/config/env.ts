@@ -29,12 +29,10 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM: z.string().email().default("noreply@logtics.io"),
 
-  // S3
-  S3_ENDPOINT: z.string().optional(),
-  S3_BUCKET: z.string().optional(),
-  S3_REGION: z.string().default("us-east-1"),
-  S3_ACCESS_KEY: z.string().optional(),
-  S3_SECRET_KEY: z.string().optional(),
+  // Cloudinary
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),

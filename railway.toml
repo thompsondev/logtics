@@ -1,0 +1,14 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Runs migrations BEFORE the new version goes live (zero-downtime safe)
+releaseCommand = "npm run db:migrate"
+startCommand   = "npm run start"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[deploy.healthcheck]
+httpPath = "/api/health"
+timeoutSeconds = 30

@@ -3,6 +3,20 @@ import { DataSource } from "typeorm";
 import { env } from "@/config/env";
 import { logger } from "@/lib/logger";
 
+/** Returns true when the URL explicitly requires SSL (e.g. Neon, Supabase). */
+function requiresSsl(url: string): boolean {
+  try {
+    const { hostname, searchParams } = new URL(url);
+    return (
+      searchParams.get("sslmode") === "require" ||
+      hostname.endsWith(".neon.tech") ||
+      hostname.endsWith(".supabase.co")
+    );
+  } catch {
+    return false;
+  }
+}
+
 // ─── Entities ─────────────────────────────────────────────────────────────
 import { User } from "@/modules/users/entities/user.entity";
 import { Address } from "@/modules/shipments/entities/address.entity";
@@ -27,7 +41,9 @@ export const AppDataSource = new DataSource({
   entities,
   migrations: ["db/migrations/*.ts"],
   subscribers: [],
-  ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  // Enable SSL whenever the DATABASE_URL signals it — needed for Neon in both
+  // local dev and production.  Local postgres (no sslmode param) stays plain TCP.
+  ssl: requiresSsl(env.DATABASE_URL) ? { rejectUnauthorized: false } : false,
 });
 
 export async function getDataSource(): Promise<DataSource> {

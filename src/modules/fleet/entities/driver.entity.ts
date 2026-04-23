@@ -28,7 +28,7 @@ export class Driver {
   @Column({ unique: true, length: 50 })
   licenseNumber: string;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ type: "varchar", length: 20, nullable: true })
   phone: string | null;
 
   @Column({ default: true })
@@ -37,7 +37,7 @@ export class Driver {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ nullable: true, length: 36 })
+  @Column({ type: "uuid", nullable: true })
   currentVehicleId: string | null;
 
   @OneToOne(() => Vehicle, { nullable: true })

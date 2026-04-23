@@ -27,13 +27,15 @@ const port = Number(process.env.PORT ?? 3000);
 // ─── Global rejection guard ───────────────────────────────────────────────
 // BullMQ / ioredis emit unhandled rejections when Redis is offline at startup.
 // We catch them here so the HTTP server stays running until Redis comes back.
+const REDIS_NOISE_PATTERNS = [
+  "econnrefused", "connection is closed", "redis connection",
+  "stream isn't writeable", "connect etimedout", "failed to connect",
+  "max retries", "socket hang up", "tls", "econnreset", "epipe",
+];
+
 process.on("unhandledRejection", (reason) => {
-  const msg = reason instanceof Error ? reason.message : String(reason);
-  if (
-    msg.includes("ECONNREFUSED") ||
-    msg.includes("Connection is closed") ||
-    msg.includes("Redis connection")
-  ) {
+  const msg = (reason instanceof Error ? reason.message : String(reason)).toLowerCase();
+  if (REDIS_NOISE_PATTERNS.some((p) => msg.includes(p))) {
     logger.warn(`Redis not available — will retry: ${msg}`, "Server");
   } else {
     logger.error("Unhandled rejection", "Server", reason);

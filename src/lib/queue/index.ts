@@ -10,11 +10,15 @@ import { logger } from "@/lib/logger";
 function parsedRedisUrl(): ConnectionOptions {
   try {
     const url = new URL(env.REDIS_URL);
+    const isTls = env.REDIS_URL.startsWith("rediss://");
     return {
       host: url.hostname,
-      port: Number(url.port) || 6379,
-      password: url.password || undefined,
+      port: Number(url.port) || (isTls ? 6380 : 6379),
+      password: url.password ? decodeURIComponent(url.password) : undefined,
+      username: url.username ? decodeURIComponent(url.username) : undefined,
       db: url.pathname ? Number(url.pathname.slice(1)) || 0 : 0,
+      // TLS — required for Upstash (rediss://) and any other TLS-only Redis hosts
+      ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       lazyConnect: true,
@@ -93,10 +97,38 @@ export async function getQueueStats() {
   return { notifications: notifCounts, tracking: trackingCounts };
 }
 
+// ─── Redis connection error codes that should not crash the process ───────
+const REDIS_TRANSIENT_CODES = new Set([
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EPIPE",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+]);
+
+function isRedisConnectionError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code && REDIS_TRANSIENT_CODES.has(code)) return true;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("econnrefused") ||
+    msg.includes("connection is closed") ||
+    msg.includes("stream isn't writeable") ||
+    msg.includes("connect etimedout") ||
+    msg.includes("failed to connect") ||
+    msg.includes("max retries") ||
+    msg.includes("tls") ||
+    msg.includes("socket hang up")
+  );
+}
+
 // Suppress unhandled error events on queue instances when Redis is offline
 [notificationQueue, trackingEventQueue, analyticsQueue].forEach((q) => {
   q.on("error", (err) => {
-    if ((err as NodeJS.ErrnoException).code !== "ECONNREFUSED") {
+    if (isRedisConnectionError(err)) {
+      logger.warn(`Queue [${q.name}] Redis unavailable — retrying: ${err.message}`, "Queue");
+    } else {
       logger.error(`Queue error [${q.name}]`, "Queue", err);
     }
   });

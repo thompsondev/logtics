@@ -8,11 +8,32 @@ interface LogEntry {
   timestamp: string;
 }
 
+/**
+ * Serialize any value for logging.
+ * Error objects have non-enumerable `message` and `stack` properties —
+ * JSON.stringify gives `{}` for them, so we handle them explicitly.
+ */
+function serializeData(data: unknown): string {
+  if (data instanceof Error) {
+    return JSON.stringify({
+      name: data.name,
+      message: data.message,
+      code: (data as NodeJS.ErrnoException).code,
+      stack: data.stack,
+    });
+  }
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return String(data);
+  }
+}
+
 function formatLog(entry: LogEntry): string {
   const { level, message, context, data, timestamp } = entry;
   const prefix = context ? `[${context}]` : "";
   const base = `${timestamp} ${level.toUpperCase()} ${prefix} ${message}`;
-  return data ? `${base} ${JSON.stringify(data)}` : base;
+  return data !== undefined ? `${base} ${serializeData(data)}` : base;
 }
 
 function log(level: LogLevel, message: string, context?: string, data?: unknown) {

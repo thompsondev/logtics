@@ -15,13 +15,13 @@ export class Address {
   @Column({ length: 255 })
   street: string;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: "varchar", length: 100, nullable: true })
   street2: string | null;
 
   @Column({ length: 100 })
   city: string;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: "varchar", length: 100, nullable: true })
   state: string | null;
 
   @Column({ length: 100 })

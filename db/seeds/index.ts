@@ -2,9 +2,8 @@ import "reflect-metadata";
 import { DataSource } from "typeorm";
 import * as dotenv from "dotenv";
 import * as path from "path";
-import bcrypt from "bcryptjs";
 
-dotenv.config({ path: path.resolve(__dirname, "../../.env.local") });
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 // Inline entity imports (avoids tsconfig path alias issues in ts-node)
 import { User } from "../../src/modules/users/entities/user.entity";
@@ -17,15 +16,18 @@ import { AuditLog } from "../../src/modules/auth/entities/audit-log.entity";
 import { UserRole, ShipmentStatus, ShippingMethod, VehicleStatus } from "../../src/types";
 import { VehicleType } from "../../src/modules/fleet/entities/vehicle.entity";
 
+const dbUrl = process.env.DATABASE_URL;
+if (!dbUrl) throw new Error("DATABASE_URL is not set in .env");
+
+const requiresSsl = dbUrl.includes("neon.tech") ||
+  dbUrl.includes("sslmode=require") ||
+  dbUrl.includes("supabase.co");
+
 const ds = new DataSource({
   type: "postgres",
-  url: process.env.DATABASE_URL,
-  host: process.env.DB_HOST ?? "localhost",
-  port: Number(process.env.DB_PORT ?? 5432),
-  username: process.env.DB_USER ?? "postgres",
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME ?? "logtics",
+  url: dbUrl,
   synchronize: false,
+  ssl: requiresSsl ? { rejectUnauthorized: false } : false,
   entities: [User, Address, Shipment, TrackingEvent, Driver, Vehicle, AuditLog],
 });
 
@@ -41,13 +43,13 @@ async function seed() {
   const trackingRepo = ds.getRepository(TrackingEvent);
 
   // ─── Users ────────────────────────────────────────────────────────────────
-  const hashedPassword = await bcrypt.hash("Password123!", 12);
+  // Pass plaintext — the @BeforeInsert hook on User handles bcrypt hashing.
 
   const admin = userRepo.create({
     firstName: "Alex",
     lastName: "Admin",
     email: "admin@logtics.io",
-    password: hashedPassword,
+    password: "Password123!",
     role: UserRole.ADMIN,
     phone: "+1-555-0100",
   });
@@ -56,7 +58,7 @@ async function seed() {
     firstName: "Sam",
     lastName: "Staff",
     email: "staff@logtics.io",
-    password: hashedPassword,
+    password: "Password123!",
     role: UserRole.STAFF,
     phone: "+1-555-0101",
   });
@@ -65,7 +67,7 @@ async function seed() {
     firstName: "Chris",
     lastName: "Customer",
     email: "customer@logtics.io",
-    password: hashedPassword,
+    password: "Password123!",
     role: UserRole.CUSTOMER,
     phone: "+1-555-0102",
   });
@@ -74,12 +76,12 @@ async function seed() {
     firstName: "Dan",
     lastName: "Driver",
     email: "driver@logtics.io",
-    password: hashedPassword,
+    password: "Password123!",
     role: UserRole.STAFF,
     phone: "+1-555-0103",
   });
 
-  // Skip hash hook — already hashed above
+  // @BeforeInsert will hash each password before INSERT
   await userRepo.save([admin, staff, customer, driverUser]);
   console.log("✔  Users seeded");
 

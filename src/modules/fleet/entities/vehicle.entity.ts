@@ -29,7 +29,7 @@ export class Vehicle {
   @Column({ type: "enum", enum: VehicleType, default: VehicleType.VAN })
   type: VehicleType;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: "varchar", length: 100, nullable: true })
   model: string | null;
 
   @Column({ type: "int", nullable: true })
@@ -42,7 +42,7 @@ export class Vehicle {
   @Column({ type: "enum", enum: VehicleStatus, default: VehicleStatus.AVAILABLE })
   status: VehicleStatus;
 
-  @Column({ nullable: true, length: 36 })
+  @Column({ type: "uuid", nullable: true })
   currentDriverId: string | null;
 
   @Column({ type: "text", nullable: true })

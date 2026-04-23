@@ -22,6 +22,7 @@ const NAV: NavItem[] = [
   { href: "/admin/audit-logs",    label: "Audit Logs",  icon: "🔎", roles: [UserRole.ADMIN] },
   { href: "/dashboard",           label: "My Shipments", icon: "📋", roles: [UserRole.CUSTOMER] },
   { href: "/track",               label: "Track",       icon: "🔍" },
+  { href: "/profile",             label: "My Profile",  icon: "👤" },
 ];
 
 export function Sidebar() {

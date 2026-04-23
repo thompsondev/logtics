@@ -2,16 +2,16 @@ import Link from "next/link";
 import { APP_NAME } from "@/config/constants";
 import { LiveTracker } from "@/components/tracking/live-tracker";
 import type { TrackingResult } from "@/components/tracking/live-tracker";
+import { getDataSource } from "@/lib/db";
+import { TrackingService } from "@/modules/tracking/services/tracking.service";
 
+// Direct service call — no HTTP round-trip needed from a server component.
+// This also avoids the APP_URL env dependency and works in all environments.
 async function fetchTracking(trackingNumber: string): Promise<TrackingResult | null> {
   try {
-    const res = await fetch(
-      `${process.env.APP_URL ?? "http://localhost:3000"}/api/tracking/${trackingNumber}`,
-      { next: { revalidate: 30 } },
-    );
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.success ? (json.data as TrackingResult) : null;
+    const ds = await getDataSource();
+    const service = new TrackingService(ds);
+    return await service.getByTrackingNumber(trackingNumber);
   } catch {
     return null;
   }

@@ -97,18 +97,18 @@ export class Shipment {
 
   // ─── Delivery timestamps ──────────────────────────────────────────────────
 
-  @Column({ nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   estimatedDelivery: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   actualDelivery: Date | null;
 
   // ─── Assignment ───────────────────────────────────────────────────────────
 
-  @Column({ nullable: true, length: 36 })
+  @Column({ type: "uuid", nullable: true })
   driverId: string | null;
 
-  @Column({ nullable: true, length: 36 })
+  @Column({ type: "uuid", nullable: true })
   vehicleId: string | null;
 
   // ─── Metadata ─────────────────────────────────────────────────────────────

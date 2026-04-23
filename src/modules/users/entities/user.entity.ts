@@ -33,13 +33,13 @@ export class User {
   @Column({ type: "enum", enum: UserRole, default: UserRole.CUSTOMER })
   role: UserRole;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ type: "varchar", length: 20, nullable: true })
   phone: string | null;
 
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ nullable: true, length: 500 })
+  @Column({ type: "varchar", nullable: true, length: 500 })
   avatarUrl: string | null;
 
   @CreateDateColumn()

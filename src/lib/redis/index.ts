@@ -6,13 +6,27 @@ let redisClient: Redis | null = null;
 
 export function getRedisClient(): Redis {
   if (!redisClient) {
+    // ioredis handles rediss:// (TLS) automatically when given a URL string,
+    // but Upstash requires the tls option to be explicit when passing an options
+    // object. Detect the scheme and add tls: {} if needed.
+    const isTls = env.REDIS_URL.startsWith("rediss://");
     redisClient = new Redis(env.REDIS_URL, {
       maxRetriesPerRequest: 3,
       lazyConnect: true,
+      ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
     });
 
+    const REDIS_NOISE = ["econnrefused", "tls", "etimedout", "econnreset", "socket hang up"];
     redisClient.on("connect", () => logger.info("Redis connected", "Redis"));
-    redisClient.on("error", (err) => logger.error("Redis error", "Redis", err));
+    redisClient.on("ready", () => logger.info("Redis ready", "Redis"));
+    redisClient.on("error", (err: Error) => {
+      const msg = err.message.toLowerCase();
+      if (REDIS_NOISE.some((p) => msg.includes(p))) {
+        logger.warn(`Redis unavailable — ${err.message}`, "Redis");
+      } else {
+        logger.error("Redis error", "Redis", err);
+      }
+    });
     redisClient.on("close", () => logger.warn("Redis connection closed", "Redis"));
   }
   return redisClient;

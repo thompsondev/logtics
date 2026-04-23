@@ -27,25 +27,25 @@ export class AuditLog {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ nullable: true, length: 36 })
+  @Column({ type: "uuid", nullable: true })
   userId: string | null;
 
-  @Column({ length: 100 })
+  @Column({ type: "varchar", length: 100 })
   action: string;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: "varchar", length: 100, nullable: true })
   resourceType: string | null;
 
-  @Column({ nullable: true, length: 36 })
+  @Column({ type: "uuid", nullable: true })
   resourceId: string | null;
 
   @Column({ type: "jsonb", nullable: true })
   metadata: AuditMetadata | null;
 
-  @Column({ length: 45, nullable: true })
+  @Column({ type: "varchar", length: 45, nullable: true })
   ipAddress: string | null;
 
-  @Column({ length: 500, nullable: true })
+  @Column({ type: "varchar", length: 500, nullable: true })
   userAgent: string | null;
 
   @CreateDateColumn()

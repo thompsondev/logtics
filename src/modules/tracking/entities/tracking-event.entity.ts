@@ -27,7 +27,7 @@ export class TrackingEvent {
   @Column({ type: "enum", enum: ShipmentStatus })
   status: ShipmentStatus;
 
-  @Column({ length: 255, nullable: true })
+  @Column({ type: "varchar", length: 255, nullable: true })
   location: string | null;
 
   @Column({ type: "text" })
@@ -40,7 +40,7 @@ export class TrackingEvent {
   longitude: number | null;
 
   // Who triggered this event (null = system-generated)
-  @Column({ nullable: true, length: 36 })
+  @Column({ type: "uuid", nullable: true })
   createdById: string | null;
 
   @CreateDateColumn()
