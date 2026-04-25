@@ -7,6 +7,7 @@ import { getMeRequest, logoutRequest } from "./auth-client";
 interface AuthContext {
   user: AuthUser | null;
   loading: boolean;
+  sessionChecked: boolean;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -39,6 +40,7 @@ function writeCachedUser(user: AuthUser | null) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   const refresh = useCallback(async () => {
     const me = await getMeRequest();
@@ -67,10 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // • Valid session  → updates user in context (may redirect to dashboard)
     // • Expired/gone   → clears user + cache (may redirect to login)
     // The spinner is already gone by this point — no UI flicker.
-    refresh().catch(() => null);
+    refresh()
+      .catch(() => {
+        setUser(null);
+        writeCachedUser(null);
+      })
+      .finally(() => {
+        setSessionChecked(true);
+      });
   }, [refresh]);
 
-  return <Ctx.Provider value={{ user, loading, logout, refresh }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading, sessionChecked, logout, refresh }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth(): AuthContext {

@@ -45,6 +45,26 @@ process.on("unhandledRejection", (reason) => {
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
+async function prewarmStartupDependencies() {
+  try {
+    // Warm auth route (and its lazy DB initialization) through Next runtime
+    // to avoid loading TypeORM entities directly in the tsx server process.
+    const res = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "prewarm@local.invalid",
+        password: "prewarm-invalid-password",
+      }),
+    });
+    logger.info(`Startup prewarm complete (auth route warmed: ${res.status})`, "Server");
+  } catch (err) {
+    // Non-fatal: keep server up and let requests retry naturally.
+    logger.warn("Startup prewarm skipped (auth route not ready yet)", "Server");
+    logger.error("Prewarm dependency error", "Server", err);
+  }
+}
+
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => {
     const parsedUrl = parse(req.url ?? "/", true);
@@ -131,6 +151,8 @@ app.prepare().then(() => {
 
   startWorkers();
 
+  // ─── Warm critical dependencies so first auth request is fast ────────────
+
   // ─── Graceful shutdown ────────────────────────────────────────────────────
 
   async function shutdown(signal: string) {
@@ -150,6 +172,9 @@ app.prepare().then(() => {
   httpServer.listen(port, hostname, () => {
     logger.info(`Server ready on http://${hostname}:${port}`, "Server");
     logger.info(`WebSocket ready on ws://${hostname}:${port}/ws`, "Server");
+    setTimeout(() => {
+      prewarmStartupDependencies().catch(() => null);
+    }, 250);
   });
 });
 

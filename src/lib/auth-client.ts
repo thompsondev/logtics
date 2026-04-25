@@ -4,6 +4,20 @@ import { AuthUser } from "@/types";
 
 // ─── API helpers (client-side) ────────────────────────────────────────────
 
+async function parseApiResponse(res: Response): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  const text = await res.text();
+  if (!text) return { success: false, error: "Empty response from server" };
+
+  try {
+    return JSON.parse(text) as { success: boolean; data?: unknown; error?: string };
+  } catch {
+    return {
+      success: false,
+      error: res.ok ? "Unexpected server response" : "Request failed. Please try again.",
+    };
+  }
+}
+
 export async function loginRequest(email: string, password: string) {
   const res = await fetch("/api/auth/login", {
     method: "POST",
@@ -11,7 +25,7 @@ export async function loginRequest(email: string, password: string) {
     body: JSON.stringify({ email, password }),
     credentials: "include",
   });
-  const data = await res.json();
+  const data = await parseApiResponse(res);
   if (!data.success) throw new Error(data.error ?? "Login failed");
   return data.data as { user: AuthUser; tokens: { accessToken: string; refreshToken: string } };
 }
@@ -29,7 +43,7 @@ export async function registerRequest(payload: {
     body: JSON.stringify(payload),
     credentials: "include",
   });
-  const data = await res.json();
+  const data = await parseApiResponse(res);
   if (!data.success) throw new Error(data.error ?? "Registration failed");
   return data.data as { user: AuthUser; tokens: { accessToken: string; refreshToken: string } };
 }

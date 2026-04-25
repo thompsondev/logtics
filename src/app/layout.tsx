@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
+import { DevRedisHealthBanner } from "@/components/ui/dev-redis-health-banner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,8 +30,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-          <Providers>{children}</Providers>
-        </body>
+        <Providers>{children}</Providers>
+        {process.env.NODE_ENV === "development" ? <DevRedisHealthBanner /> : null}
+      </body>
     </html>
   );
 }
